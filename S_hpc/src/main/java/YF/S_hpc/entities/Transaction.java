@@ -1,9 +1,8 @@
-package entities;
+package YF.S_hpc.entities;
 
 
 import jakarta.persistence.*;
 import lombok.*;
-import org.springframework.data.annotation.Id;
 
 import java.util.Date;
 
@@ -18,7 +17,7 @@ public class Transaction {
     private Double amount;
     private Long accountId;
     @Enumerated(EnumType.STRING)
-    private TransactionStatus status;
+    private TransactionStatus transactionStatus;
     @Enumerated(EnumType.STRING)
     private TransactionType type;
 }

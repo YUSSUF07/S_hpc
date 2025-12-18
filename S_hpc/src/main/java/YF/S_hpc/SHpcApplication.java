@@ -1,13 +1,13 @@
 package YF.S_hpc;
 
-import entities.Transaction;
-import entities.TransactionStatus;
-import entities.TransactionType;
+import YF.S_hpc.entities.Transaction;
+import YF.S_hpc.entities.TransactionStatus;
+import YF.S_hpc.entities.TransactionType;
 import org.springframework.boot.CommandLineRunner;
 import org.springframework.boot.SpringApplication;
 import org.springframework.boot.autoconfigure.SpringBootApplication;
 import org.springframework.context.annotation.Bean;
-import repository.TransactionRepository;
+import YF.S_hpc.repository.TransactionRepository;
 
 import java.util.Date;
 import java.util.List;
@@ -33,7 +33,7 @@ public class SHpcApplication {
                                 .accountId(accountId)
                                 .amount(Math.random() * 1000)
                                 .type(transactionType)
-                                .status(TransactionStatus.PENDING)
+                                .transactionStatus(TransactionStatus.PENDING)
                                 .date(new Date())
                                 .build();
                         transactionRepository.save(transaction);

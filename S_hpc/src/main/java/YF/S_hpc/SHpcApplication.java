@@ -8,16 +8,17 @@ import org.springframework.boot.SpringApplication;
 import org.springframework.boot.autoconfigure.SpringBootApplication;
 import org.springframework.context.annotation.Bean;
 import YF.S_hpc.repository.TransactionRepository;
-
 import java.util.Date;
 import java.util.List;
+import com.vaadin.flow.theme.Theme;
+import com.vaadin.flow.component.page.AppShellConfigurator;
 
 @SpringBootApplication
 public class SHpcApplication {
 
-	public static void main(String[] args) {
-		SpringApplication.run(SHpcApplication.class, args);
-	}
+    public static void main(String[] args) {
+        SpringApplication.run(SHpcApplication.class, args);
+    }
 
     @Bean
     public CommandLineRunner init(TransactionRepository transactionRepository) {
@@ -29,13 +30,7 @@ public class SHpcApplication {
                 // Create and save initial transactions for each account)
                 for (TransactionType transactionType : TransactionType.values()) {
                     for (int i = 0; i < 5; i++) {
-                        Transaction transaction = Transaction.builder()
-                                .accountId(accountId)
-                                .amount(Math.random() * 1000)
-                                .type(transactionType)
-                                .transactionStatus(TransactionStatus.PENDING)
-                                .date(new Date())
-                                .build();
+                        Transaction transaction = Transaction.builder().accountId(accountId).amount(Math.random() * 1000).type(transactionType).transactionStatus(TransactionStatus.PENDING).date(new Date()).build();
                         transactionRepository.save(transaction);
                     }
                 }

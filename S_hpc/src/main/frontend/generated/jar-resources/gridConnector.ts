@@ -1,9 +1,9 @@
 // @ts-nocheck
-import { Debouncer } from '@vaadin/component-base/src/debounce.js';
-import { timeOut, animationFrame } from '@vaadin/component-base/src/async.js';
+import { Debouncer } from '@polymer/polymer/lib/utils/debounce.js';
+import { timeOut, animationFrame } from '@polymer/polymer/lib/utils/async.js';
 import { Grid } from '@vaadin/grid/src/vaadin-grid.js';
 import { isFocusable } from '@vaadin/grid/src/vaadin-grid-active-item-mixin.js';
-import { GridFlowSelectionColumn } from './vaadin-grid-flow-selection-column.js';
+import { GridFlowSelectionColumn } from "./vaadin-grid-flow-selection-column.js";
 
 window.Vaadin.Flow.gridConnector = {};
 window.Vaadin.Flow.gridConnector.initLazy = (grid) => {
@@ -42,9 +42,9 @@ window.Vaadin.Flow.gridConnector.initLazy = (grid) => {
   let cache = {};
 
   /* parentRequestDelay - optimizes parent requests by batching several requests
-   *  into one request. Delay in milliseconds. Disable by setting to 0.
-   *  parentRequestBatchMaxSize - maximum size of the batch.
-   */
+    *  into one request. Delay in milliseconds. Disable by setting to 0.
+    *  parentRequestBatchMaxSize - maximum size of the batch.
+    */
   const parentRequestDelay = 50;
   const parentRequestBatchMaxSize = 20;
 
@@ -111,11 +111,8 @@ window.Vaadin.Flow.gridConnector.initLazy = (grid) => {
       selectedKeys = {};
     }
 
-    let selectedItemsChanged = false;
     items.forEach((item) => {
-      const selectable = !userOriginated || grid.isItemSelectable(item);
-      selectedItemsChanged = selectedItemsChanged || selectable;
-      if (item && selectable) {
+      if (item) {
         selectedKeys[item.key] = item;
         item.selected = true;
         if (userOriginated) {
@@ -131,9 +128,7 @@ window.Vaadin.Flow.gridConnector.initLazy = (grid) => {
       }
     });
 
-    if (selectedItemsChanged) {
-      grid.selectedItems = Object.values(selectedKeys);
-    }
+    grid.selectedItems = Object.values(selectedKeys);
   };
 
   grid.$connector.doDeselection = function (items, userOriginated) {
@@ -144,10 +139,6 @@ window.Vaadin.Flow.gridConnector.initLazy = (grid) => {
     const updatedSelectedItems = grid.selectedItems.slice();
     while (items.length) {
       const itemToDeselect = items.shift();
-      const selectable = !userOriginated || grid.isItemSelectable(itemToDeselect);
-      if (!selectable) {
-        continue;
-      }
       for (let i = 0; i < updatedSelectedItems.length; i++) {
         const selectedItem = updatedSelectedItems[i];
         if (itemToDeselect?.key === selectedItem.key) {
@@ -175,11 +166,6 @@ window.Vaadin.Flow.gridConnector.initLazy = (grid) => {
         if (grid.__deselectDisallowed) {
           grid.activeItem = oldVal;
         } else {
-          // The item instance may have changed since the item was stored as active item
-          // and information such as whether the item may be selected or deselected may
-          // be stale. Use data provider controller to get updated instance from grid
-          // cache.
-          oldVal = dataProviderController.getItemContext(oldVal).item;
           grid.$connector.doDeselection([oldVal], true);
         }
       }
@@ -234,7 +220,11 @@ window.Vaadin.Flow.gridConnector.initLazy = (grid) => {
     const delay = grid._hasData ? rootRequestDelay : 0;
 
     rootRequestDebouncer = Debouncer.debounce(rootRequestDebouncer, timeOut.after(delay), () => {
-      grid.$connector.fetchPage((firstIndex, size) => grid.$server.setViewportRange(firstIndex, size), page, root);
+      grid.$connector.fetchPage(
+        (firstIndex, size) => grid.$server.setRequestedRange(firstIndex, size),
+        page,
+        root
+      );
     });
   };
 
@@ -465,6 +455,7 @@ window.Vaadin.Flow.gridConnector.initLazy = (grid) => {
       throw 'Attempted to call itemsUpdated with an invalid value: ' + JSON.stringify(items);
     }
     let detailsOpenedItems = Array.from(grid.detailsOpenedItems);
+    let updatedSelectedItem = false;
     for (let i = 0; i < items.length; ++i) {
       const item = items[i];
       if (!item) {
@@ -477,8 +468,18 @@ window.Vaadin.Flow.gridConnector.initLazy = (grid) => {
       } else if (grid._getItemIndexInArray(item, detailsOpenedItems) >= 0) {
         detailsOpenedItems.splice(grid._getItemIndexInArray(item, detailsOpenedItems), 1);
       }
+      if (selectedKeys[item.key]) {
+        selectedKeys[item.key] = item;
+        item.selected = true;
+        updatedSelectedItem = true;
+      }
     }
     grid.detailsOpenedItems = detailsOpenedItems;
+    if (updatedSelectedItem) {
+      // Replace the objects in the grid.selectedItems array without replacing the array
+      // itself in order to avoid an unnecessary re-render of the grid.
+      grid.selectedItems.splice(0, grid.selectedItems.length, ...Object.values(selectedKeys));
+    }
   };
 
   /**
@@ -492,8 +493,9 @@ window.Vaadin.Flow.gridConnector.initLazy = (grid) => {
     const items = cache[parentKey][page];
     const parentItem = createEmptyItemFromKey(parentKey);
 
-    let gridCache =
-      parentKey === root ? dataProviderController.rootCache : dataProviderController.getItemSubCache(parentItem);
+    let gridCache = parentKey === root
+      ? dataProviderController.rootCache
+      : dataProviderController.getItemSubCache(parentItem);
 
     // Force update unless there's a callback waiting
     if (gridCache && !gridCache.pendingRequests[page]) {
@@ -699,7 +701,9 @@ window.Vaadin.Flow.gridConnector.initLazy = (grid) => {
       return;
     }
     if (index % grid.pageSize != 0) {
-      throw 'Got cleared data for index ' + index + ' which is not aligned with the page size of ' + grid.pageSize;
+      throw (
+        'Got cleared data for index ' + index + ' which is not aligned with the page size of ' + grid.pageSize
+      );
     }
 
     let firstPage = Math.floor(index / grid.pageSize);
@@ -733,12 +737,21 @@ window.Vaadin.Flow.gridConnector.initLazy = (grid) => {
   };
 
   grid.$connector.reset = function () {
+    grid.size = 0;
     cache = {};
-    dataProviderController.clearCache();
+    dataProviderController.rootCache.items = [];
     lastRequestedRanges = {};
-    ensureSubCacheDebouncer?.cancel();
-    parentRequestDebouncer?.cancel();
-    rootRequestDebouncer?.cancel();
+    if (ensureSubCacheDebouncer) {
+      ensureSubCacheDebouncer.cancel();
+    }
+    if (parentRequestDebouncer) {
+      parentRequestDebouncer.cancel();
+    }
+    if (rootRequestDebouncer) {
+      rootRequestDebouncer.cancel();
+    }
+    ensureSubCacheDebouncer = undefined;
+    parentRequestDebouncer = undefined;
     ensureSubCacheQueue = [];
     parentRequestQueue = [];
     updateAllGridRowsInDomBasedOnCache();
@@ -888,11 +901,11 @@ window.Vaadin.Flow.gridConnector.initLazy = (grid) => {
   };
 
   /*
-   * Manage aria-multiselectable attribute depending on the selection mode.
-   * see more: https://github.com/vaadin/web-components/issues/1536
-   * or: https://www.w3.org/TR/wai-aria-1.1/#aria-multiselectable
-   * For selection mode SINGLE, set the aria-multiselectable attribute to false
-   */
+    * Manage aria-multiselectable attribute depending on the selection mode.
+    * see more: https://github.com/vaadin/web-components/issues/1536
+    * or: https://www.w3.org/TR/wai-aria-1.1/#aria-multiselectable
+    * For selection mode SINGLE, set the aria-multiselectable attribute to false
+    */
   grid.$connector.updateMultiSelectable = function () {
     if (!grid.$) {
       return;
@@ -959,9 +972,9 @@ window.Vaadin.Flow.gridConnector.initLazy = (grid) => {
   // automatically excluding columns from sorting when they get hidden.
   // In Flow, it's the developer's responsibility to remove the column
   // from the backend sort order when the column gets hidden.
-  grid._getActiveSorters = function () {
+  grid._getActiveSorters = function() {
     return this._sorters.filter((sorter) => sorter.direction);
-  };
+  }
 
   grid.__applySorters = () => {
     const sorters = grid._mapSorters();
@@ -1009,10 +1022,13 @@ window.Vaadin.Flow.gridConnector.initLazy = (grid) => {
     });
   };
 
-  grid.addEventListener('vaadin-context-menu-before-open', function (e) {
-    const { key, columnId } = e.detail;
-    grid.$server.updateContextMenuTargetItem(key, columnId);
-  });
+  grid.addEventListener(
+    'vaadin-context-menu-before-open',
+    function (e) {
+      const { key, columnId } = e.detail;
+      grid.$server.updateContextMenuTargetItem(key, columnId);
+    }
+  );
 
   grid.getContextMenuBeforeOpenDetail = function (event) {
     // For `contextmenu` events, we need to access the source event,
@@ -1025,66 +1041,81 @@ window.Vaadin.Flow.gridConnector.initLazy = (grid) => {
   };
 
   grid.preventContextMenu = function (event) {
-    const isLeftClick = event.type === 'click';
-    const { column } = grid.getEventContext(event);
+      const isLeftClick = event.type === 'click';
+      const { column } = grid.getEventContext(event);
 
-    return isLeftClick && column instanceof GridFlowSelectionColumn;
+      return isLeftClick && column instanceof GridFlowSelectionColumn;
   };
 
-  grid.addEventListener('click', (e) => _fireClickEvent(e, 'item-click'));
-  grid.addEventListener('dblclick', (e) => _fireClickEvent(e, 'item-double-click'));
+  grid.addEventListener(
+    'click',
+    (e) => _fireClickEvent(e, 'item-click')
+  );
+  grid.addEventListener(
+    'dblclick',
+    (e) => _fireClickEvent(e, 'item-double-click')
+  );
 
-  grid.addEventListener('column-resize', (e) => {
-    const cols = grid._getColumnsInOrder().filter((col) => !col.hidden);
+  grid.addEventListener(
+    'column-resize',
+    (e) => {
+      const cols = grid._getColumnsInOrder().filter((col) => !col.hidden);
 
-    cols.forEach((col) => {
-      col.dispatchEvent(new CustomEvent('column-drag-resize'));
-    });
+      cols.forEach((col) => {
+        col.dispatchEvent(new CustomEvent('column-drag-resize'));
+      });
 
-    grid.dispatchEvent(
-      new CustomEvent('column-drag-resize', {
-        detail: {
-          resizedColumnKey: e.detail.resizedColumn._flowId
-        }
-      })
-    );
-  });
-
-  grid.addEventListener('column-reorder', (e) => {
-    const columns = grid._columnTree
-      .slice(0)
-      .pop()
-      .filter((c) => c._flowId)
-      .sort((b, a) => b._order - a._order)
-      .map((c) => c._flowId);
-
-    grid.dispatchEvent(
-      new CustomEvent('column-reorder-all-columns', {
-        detail: { columns }
-      })
-    );
-  });
-
-  grid.addEventListener('cell-focus', (e) => {
-    const eventContext = grid.getEventContext(e);
-    const expectedSectionValues = ['header', 'body', 'footer'];
-
-    if (expectedSectionValues.indexOf(eventContext.section) === -1) {
-      return;
+      grid.dispatchEvent(
+        new CustomEvent('column-drag-resize', {
+          detail: {
+            resizedColumnKey: e.detail.resizedColumn._flowId
+          }
+        })
+      );
     }
+  );
 
-    grid.dispatchEvent(
-      new CustomEvent('grid-cell-focus', {
-        detail: {
-          itemKey: eventContext.item ? eventContext.item.key : null,
+  grid.addEventListener(
+    'column-reorder',
+    (e) => {
+      const columns = grid._columnTree
+        .slice(0)
+        .pop()
+        .filter((c) => c._flowId)
+        .sort((b, a) => b._order - a._order)
+        .map((c) => c._flowId);
 
-          internalColumnId: eventContext.column ? eventContext.column._flowId : null,
+      grid.dispatchEvent(
+        new CustomEvent('column-reorder-all-columns', {
+          detail: { columns }
+        })
+      );
+    }
+  );
 
-          section: eventContext.section
-        }
-      })
-    );
-  });
+  grid.addEventListener(
+    'cell-focus',
+    (e) => {
+      const eventContext = grid.getEventContext(e);
+      const expectedSectionValues = ['header', 'body', 'footer'];
+
+      if (expectedSectionValues.indexOf(eventContext.section) === -1) {
+        return;
+      }
+
+      grid.dispatchEvent(
+        new CustomEvent('grid-cell-focus', {
+          detail: {
+            itemKey: eventContext.item ? eventContext.item.key : null,
+
+            internalColumnId: eventContext.column ? eventContext.column._flowId : null,
+
+            section: eventContext.section
+          }
+        })
+      );
+    }
+  );
 
   function _fireClickEvent(event, eventName) {
     // Click event was handled by the component inside grid, do nothing.
@@ -1094,19 +1125,12 @@ window.Vaadin.Flow.gridConnector.initLazy = (grid) => {
 
     const path = event.composedPath();
     const idx = path.findIndex((node) => node.localName === 'td' || node.localName === 'th');
-    const cell = path[idx];
     const content = path.slice(0, idx);
 
     // Do not fire item click event if cell content contains focusable elements.
     // Use this instead of event.target to detect cases like icon inside button.
     // See https://github.com/vaadin/flow-components/issues/4065
-    if (
-      content.some((node) => {
-        // Ignore focus buttons that the component renders into cells in focus button mode on MacOS
-        const focusable = cell?._focusButton !== node && isFocusable(node);
-        return focusable || node instanceof HTMLLabelElement;
-      })
-    ) {
+    if (content.some((node) => isFocusable(node) || node instanceof HTMLLabelElement)) {
       return;
     }
 
@@ -1143,32 +1167,30 @@ window.Vaadin.Flow.gridConnector.initLazy = (grid) => {
 
   grid.dragFilter = (rowData) => rowData.item && !rowData.item.dragDisabled;
 
-  grid.addEventListener('grid-dragstart', (e) => {
-    if (grid._isSelected(e.detail.draggedItems[0])) {
-      // Dragging selected (possibly multiple) items
-      if (grid.__selectionDragData) {
-        Object.keys(grid.__selectionDragData).forEach((type) => {
-          e.detail.setDragData(type, grid.__selectionDragData[type]);
-        });
+  grid.addEventListener(
+    'grid-dragstart',
+    (e) => {
+      if (grid._isSelected(e.detail.draggedItems[0])) {
+        // Dragging selected (possibly multiple) items
+        if (grid.__selectionDragData) {
+          Object.keys(grid.__selectionDragData).forEach((type) => {
+            e.detail.setDragData(type, grid.__selectionDragData[type]);
+          });
+        } else {
+          (grid.__dragDataTypes || []).forEach((type) => {
+            e.detail.setDragData(type, e.detail.draggedItems.map((item) => item.dragData[type]).join('\n'));
+          });
+        }
+
+        if (grid.__selectionDraggedItemsCount > 1) {
+          e.detail.setDraggedItemsCount(grid.__selectionDraggedItemsCount);
+        }
       } else {
+        // Dragging just one (non-selected) item
         (grid.__dragDataTypes || []).forEach((type) => {
-          e.detail.setDragData(type, e.detail.draggedItems.map((item) => item.dragData[type]).join('\n'));
+          e.detail.setDragData(type, e.detail.draggedItems[0].dragData[type]);
         });
       }
-
-      if (grid.__selectionDraggedItemsCount > 1) {
-        e.detail.setDraggedItemsCount(grid.__selectionDraggedItemsCount);
-      }
-    } else {
-      // Dragging just one (non-selected) item
-      (grid.__dragDataTypes || []).forEach((type) => {
-        e.detail.setDragData(type, e.detail.draggedItems[0].dragData[type]);
-      });
     }
-  });
-
-  grid.isItemSelectable = (item) => {
-    // If there is no selectable data, assume the item is selectable
-    return item?.selectable === undefined || item.selectable;
-  };
+  );
 };

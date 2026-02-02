@@ -1,60 +1,46 @@
 package YF.S_hpc.services;
 
 import YF.S_hpc.agents.AiAssistantTools;
-import YF.S_hpc.agents.AiAssistantTools;
-import YF.S_hpc.agents.TransactionAiAgent;
-import dev.langchain4j.memory.ChatMemory;
 import dev.langchain4j.memory.chat.MessageWindowChatMemory;
 import dev.langchain4j.model.chat.ChatLanguageModel;
-import dev.langchain4j.model.chat.StreamingChatLanguageModel;
 import dev.langchain4j.service.AiServices;
-import dev.langchain4j.service.TokenStream;
-import jakarta.annotation.PostConstruct;
 import org.springframework.stereotype.Service;
 
 @Service
 public class ChatService {
-    private final ChatLanguageModel chatModel;
-    private final AiAssistantTools tools;
-    private TransactionAiAgent agent;
-    private final StreamingChatLanguageModel streamingModel;
+
+    interface Assistant {
+        String chat(String userMessage);
+    }
+
+    private final Assistant assistant;
+    private final MessageWindowChatMemory chatMemory;
 
     public ChatService(
             ChatLanguageModel chatModel,
-            AiAssistantTools tools, StreamingChatLanguageModel streamingModel) {
-        this.chatModel = chatModel;
-        this.tools = tools;
-        this.streamingModel = streamingModel;
-    }
+            AiAssistantTools tools) {
 
-    @PostConstruct
-    public void init() {
-        // Mémoire conversationnelle (garde les 20 derniers messages)
-        ChatMemory chatMemory = MessageWindowChatMemory.withMaxMessages(20);
+        this.chatMemory = MessageWindowChatMemory.withMaxMessages(20);
 
-        // Construction de l'agent avec tous ses composants
-        this.agent = AiServices.builder(TransactionAiAgent.class)
+        // ✅ Configuration correcte avec tools
+        this.assistant = AiServices.builder(Assistant.class)
                 .chatLanguageModel(chatModel)
-                .streamingChatLanguageModel(streamingModel)
                 .chatMemory(chatMemory)
-                .tools(tools)
+                .tools(tools) // ← Enregistrement des tools
                 .build();
+
+        System.out.println("✅ ChatService initialisé avec tools");
     }
 
-    /**
-     * Point d'entrée principal pour communiquer avec l'agent IA.
-     */
     public String chat(String userMessage) {
-        return agent.chat(userMessage);
+        System.out.println("📩 Message reçu: " + userMessage);
+        String response = assistant.chat(userMessage);
+        System.out.println("📤 Réponse envoyée: " + response);
+        return response;
     }
 
-    public TokenStream chatStream(String userMessage) {
-        return agent.chatStream(userMessage);
-    }
-    /**
-     * Réinitialiser la mémoire de conversation.
-     */
     public void resetMemory() {
-        init(); // Recrée l'agent avec une nouvelle mémoire
+        chatMemory.clear();
+        System.out.println("🗑️ Mémoire effacée");
     }
 }

@@ -1,0 +1,85 @@
+@startuml
+title Architecture applicative - S_hpc
+
+skinparam packageStyle rectangle
+skinparam shadowing false
+skinparam linetype ortho
+
+' =========================
+' CLIENT
+' =========================
+package "Client" {
+  class "Navigateur Web\n(Vaadin UI)" <<UI>>
+}
+
+' =========================
+' APPLICATION SPRING BOOT
+' =========================
+package "Spring Boot Application" {
+
+  package "Presentation Layer" {
+    class ChatView <<Vaadin View>>
+  }
+
+  package "Service Layer" {
+    class ChatService <<Service>>
+    class AudioTranscriptionService <<Service>>
+    class TransactionService <<Service>>
+  }
+
+  package "AI Layer" {
+    class AiAssistantTools <<Agent>>
+    class AiConfig <<Configuration>>
+  }
+
+  package "Persistence Layer" {
+    interface TransactionRepository <<Repository>>
+  }
+
+  package "Domain Model" {
+    class Transaction <<Entity>>
+    enum TypeTransaction
+    enum StatutTransaction
+  }
+
+  package "Configuration" {
+    class AppShell <<Vaadin Config>>
+    class LangChain4jConfig <<AI Config>>
+  }
+}
+
+' =========================
+' EXTERNAL SYSTEMS
+' =========================
+package "External Systems" {
+  class "Ollama\n(LLaMA 3.2)" <<LLM>>
+  class "AssemblyAI API" <<Speech-to-Text>>
+  class "PostgreSQL\n+ PgVector" <<Database>>
+}
+
+' =========================
+' RELATIONS
+' =========================
+
+"Navigateur Web\n(Vaadin UI)" --> ChatView : HTTP / WebSocket
+
+ChatView --> ChatService
+ChatView --> AudioTranscriptionService
+
+ChatService --> AiAssistantTools
+AiAssistantTools --> "Ollama\n(LLaMA 3.2)"
+
+AudioTranscriptionService --> "AssemblyAI API"
+
+TransactionService --> TransactionRepository
+TransactionRepository --> "PostgreSQL\n+ PgVector"
+
+Transaction --> TypeTransaction
+Transaction --> StatutTransaction
+
+ChatService --> TransactionService
+
+LangChain4jConfig --> AiConfig
+AiConfig --> "Ollama\n(LLaMA 3.2)"
+
+@enduml

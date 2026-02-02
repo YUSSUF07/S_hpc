@@ -1,0 +1,44 @@
+@startuml
+title Architecture globale - S_hpc (Chat + IA + Audio)
+
+skinparam componentStyle rectangle
+skinparam shadowing false
+
+actor "Client\n(Navigateur)" as Client
+
+component "Vaadin UI\n(Web)" as VaadinUI
+
+package "Spring Boot Application" {
+
+  component "Controllers & Views\n(Vaadin)" as Controllers
+
+  component "Services Layer\n- ChatService\n- AudioTranscriptionService\n- TransactionService" as Services
+
+  component "AI Agents\n- Tools" as Agents
+
+  component "Repository Layer\n- TransactionRepository" as Repository
+}
+
+component "LangChain4j\n+ Ollama\n(LLaMA 3.2)" as LLM
+
+component "PostgreSQL\n+ PgVector" as DB
+
+component "AssemblyAI API\n(Transcription)" as AssemblyAI
+
+' ==== Relations ====
+
+Client --> VaadinUI : HTTP / WebSocket
+VaadinUI --> Controllers
+
+Controllers --> Services
+
+Services --> Agents
+Services --> Repository
+
+Agents --> LLM
+
+Repository --> DB
+
+Services --> AssemblyAI : Audio → Texte
+
+@enduml
